@@ -1,54 +1,61 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"html/template"
-	"log"
 	"net/http"
 	"strconv"
+
+	"snippetapp.olex/internal/models"
 )
 
-func home(writer http.ResponseWriter, request *http.Request){
+func (app *application) home(writer http.ResponseWriter, request *http.Request){
 	if request.URL.Path != "/"{
-		http.NotFound(writer, request)
+		app.notFound(writer)
 		return
 	}
-	files := []string{
-		"./ui/html/base.html",
-		"./ui/html/partials/nav.html",
-		"./ui/html/pages/home.html",
-	}
-	ts, err := template.ParseFiles(files...)
+
+	latestSnippets, err := app.snippets.Latest()
 
 	if err != nil{
-		log.Println(err.Error())
-		http.Error(writer, "Internal server error", http.StatusInternalServerError)
+		app.serverError(writer, err)
 		return
 	}
+	app.render(writer, http.StatusOK, "home.html", &templateData{Snippets: latestSnippets})
+}
 
-	err = ts.ExecuteTemplate(writer, "base", nil)
+func (app *application) snippetView(writer http.ResponseWriter, request *http.Request){
+	id, err := strconv.Atoi(request.URL.Query().Get("id"))
+	if err != nil || id < 1{
+		app.notFound(writer)
+		return
+	}
+	snippet, err := app.snippets.Get(id)
 	if err != nil{
-		log.Println(err.Error())
-		http.Error(writer, "Internal server error", http.StatusInternalServerError)
-		return
+		if errors.Is(err, models.ErrNoRecord){
+			app.notFound(writer)
+		}else{
+			app.serverError(writer, err)
+			return
+		}
 	}
 
+	app.render(writer, http.StatusOK, "view.html", &templateData{Snippet: snippet})
 }
 
-func snippetView(writer http.ResponseWriter, request *http.Request){
-	id, error := strconv.Atoi(request.URL.Query().Get("id"))
-	if error != nil || id < 1{
-		http.NotFound(writer, request)
-		return
-	}
-	fmt.Fprintf(writer, "Displaying a specific snipper with id %d..", id)
-}
-
-func snippetCreate(writer http.ResponseWriter, request *http.Request){
+func (app *application) snippetCreate(writer http.ResponseWriter, request *http.Request){
 	if request.Method != http.MethodPost {
 		writer.Header().Set("Allow", "POST")
-		http.Error(writer, "Method not Allowed", http.StatusMethodNotAllowed)
+		app.clientError(writer, http.StatusMethodNotAllowed)
 		return
 	}
-	writer.Write([]byte("Hello from snippet create"))
+	id, err := app.snippets.Insert("Go database with dynamic expires 2", "some content 2", 10)
+	
+	if err != nil {
+		app.serverError(writer, err)
+		return
+	}
+
+	http.Redirect(writer, request, fmt.Sprintf("/snippet/view?id=%d", id), http.StatusSeeOther)
+	
 }

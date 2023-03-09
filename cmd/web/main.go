@@ -1,25 +1,57 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"log"
 	"net/http"
+	"os"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"snippetapp.olex/internal/models"
+	"html/template"
 )
 
 
 func main() {
-	mux := http.NewServeMux()
+	addr := flag.String("addr", ":8000", "HTTP network address")
+	flag.Parse()
+	
+	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
+	erorrLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
+	
+	dbpool, db_error := pgxpool.New(context.Background(), os.Getenv("SNIPPET_DB_URL"))
+	if db_error != nil {
+		erorrLog.Fatal(db_error)
+	}
+	defer dbpool.Close()
 
-	fileserver := http.FileServer(http.Dir("./ui/static/"))
+	templateCache, err := newTemplateCache()
+	if err != nil{
+		erorrLog.Fatal(err)
+	}
 
-	mux.Handle("/static/", http.StripPrefix("/static", fileserver))
+	app := &application{
+		infoLog:  infoLog,
+		errorLog: erorrLog,
+		snippets: &models.SnippetModel{DB: dbpool},
+		templateCache: templateCache,
+	}
 
-	mux.HandleFunc("/", home)
-	mux.HandleFunc("/snippet/view", snippetView)
-	mux.HandleFunc("/snippet/create", snippetCreate)
+	server := &http.Server{
+		Addr: *addr,
+		Handler: app.routes(),
+		ErrorLog: erorrLog,
+	}
 
-	log.Println("Starting server on :4000")
+	infoLog.Printf("Starting server on %s", *addr)
+	err = server.ListenAndServe()
 
-	err := http.ListenAndServe(":4000", mux)
+	erorrLog.Fatal(err)
+}
 
-	log.Fatal(err)
+type application struct {
+	infoLog *log.Logger
+	errorLog *log.Logger
+	snippets *models.SnippetModel
+	templateCache map[string]*template.Template 
 }
