@@ -1,37 +1,42 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"runtime/debug"
 )
 
-func (app *application) serverError (writer http.ResponseWriter, err error){
+func (app *application) serverError (w http.ResponseWriter, err error){
 	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
 
 	app.errorLog.Output(2, trace)
 
-	http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
-func (app *application) clientError (writer http.ResponseWriter, status int){
-	http.Error(writer, http.StatusText(status), status)
+func (app *application) clientError (w http.ResponseWriter, status int){
+	http.Error(w, http.StatusText(status), status)
 }
 
-func (app *application) notFound (writer http.ResponseWriter){
-	app.clientError(writer, http.StatusNotFound)
+func (app *application) notFound (w http.ResponseWriter){
+	app.clientError(w, http.StatusNotFound)
 }
-func (app *application) render (writer http.ResponseWriter, status int, page string, data*templateData){
+func (app *application) render (w http.ResponseWriter, status int, page string, data*templateData){
 	ts, ok := app.templateCache[page]
 	if !ok{
 		err := fmt.Errorf("The template %s does not exist", page)
-		app.serverError(writer, err)
+		app.serverError(w, err)
 		return
 	}
-	writer.WriteHeader(status)
-	err := ts.ExecuteTemplate(writer, "base", data)
+	buffer := new(bytes.Buffer)
+
+	err := ts.ExecuteTemplate(buffer, "base", data)
 	if err != nil{
-		app.serverError(writer, err)
+		app.serverError(w, err)
 	}
+
+	w.WriteHeader(status)
 	
+	buffer.WriteTo(w)
 }
