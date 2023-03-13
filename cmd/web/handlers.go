@@ -6,56 +6,67 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"snippetapp.olex/internal/models"
 )
 
-func (app *application) home(w http.ResponseWriter, request *http.Request){
-	if request.URL.Path != "/"{
-		app.notFound(w)
-		return
-	}
-
+func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	latestSnippets, err := app.snippets.Latest()
 
-	if err != nil{
+	if err != nil {
 		app.serverError(w, err)
 		return
 	}
-	app.render(w, http.StatusOK, "home.html", &templateData{Snippets: latestSnippets})
+	data := app.newTemplateData(r)
+	data.Snippets = latestSnippets
+	app.render(w, http.StatusOK, "home.html", data)
 }
 
-func (app *application) snippetView(w http.ResponseWriter, request *http.Request){
-	id, err := strconv.Atoi(request.URL.Query().Get("id"))
-	if err != nil || id < 1{
+func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil || id < 1 {
 		app.notFound(w)
 		return
 	}
 	snippet, err := app.snippets.Get(id)
-	if err != nil{
-		if errors.Is(err, models.ErrNoRecord){
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
 			app.notFound(w)
-		}else{
+		} else {
 			app.serverError(w, err)
 			return
 		}
 	}
-
-	app.render(w, http.StatusOK, "view.html", &templateData{Snippet: snippet})
+	data := app.newTemplateData(r)
+	data.Snippet = snippet
+	app.render(w, http.StatusOK, "view.html", data)
 }
+func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	app.render(w, http.StatusOK, "create.html", data)
+	//code to show html form to user
+}
+func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request) {
 
-func (app *application) snippetCreate(w http.ResponseWriter, request *http.Request){
-	if request.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
-		app.clientError(w, http.StatusMethodNotAllowed)
+	err := r.ParseForm()
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
-	id, err := app.snippets.Insert("Go database with dynamic expires 2", "some content 2", 10)
-	
+	title := r.PostForm.Get("title")
+	content := r.PostForm.Get("content")
+	expires, err := strconv.Atoi(r.PostForm.Get("expires"))
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	id, err := app.snippets.Insert(title, content, expires)
+
 	if err != nil {
 		app.serverError(w, err)
 		return
 	}
 
-	http.Redirect(w, request, fmt.Sprintf("/snippet/view?id=%d", id), http.StatusSeeOther)
-	
+	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
+
 }
