@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -45,7 +46,26 @@ func (m *UserModel) Create(name, email, password string) error {
 	return nil
 }
 func (m *UserModel) Authenticate(email, password string) (int, error) {
-	return 1, nil
+	var id int
+	var hashed_password []byte
+	statement := `SELECT id, hashed_password from users WHERE email=$1`
+	err := m.DB.QueryRow(context.Background(), statement, email).Scan(&id, &hashed_password)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, ErrInvalidCredentials
+		} else {
+			return 0, err
+		}
+	}
+	err = bcrypt.CompareHashAndPassword(hashed_password, []byte(password))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return 0, ErrInvalidCredentials
+		} else {
+			return 0, err
+		}
+	}
+	return id, nil
 }
 func (m *UserModel) Exists(id int) (bool, error) {
 	return false, nil
