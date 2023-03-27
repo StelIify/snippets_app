@@ -11,6 +11,8 @@ type templateData struct {
 	CurrentYear int
 	Snippet *models.Snippet
 	Snippets []*models.Snippet
+	Form any
+	Flash string
 }
 func formatedDate(t time.Time) string{
 	return t.Format("02 Jan 2006 at 15:04")
