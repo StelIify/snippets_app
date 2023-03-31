@@ -16,16 +16,21 @@ func (app *application) routes() http.Handler {
 	})
 
 	r.Method(http.MethodGet, "/static/*", http.StripPrefix("/static/", fileserver))
-	dynamic := alice.New(app.sessionManager.LoadAndSave)
+
+	dynamic := alice.New(app.sessionManager.LoadAndSave, noSurf)
+
 	r.Method(http.MethodGet, "/", dynamic.ThenFunc(app.home))
 	r.Method(http.MethodGet, "/snippet/view/{id}", dynamic.ThenFunc(app.snippetView))
-	r.Method(http.MethodGet, "/snippet/create", dynamic.ThenFunc(app.snippetCreate))
-	r.Method(http.MethodPost, "/snippet/create", dynamic.ThenFunc(app.snippetCreatePost))
 	r.Method(http.MethodGet, "/user/signup", dynamic.ThenFunc(app.userSignUp))
 	r.Method(http.MethodPost, "/user/signup", dynamic.ThenFunc(app.userSignUpPost))
 	r.Method(http.MethodGet, "/user/login", dynamic.ThenFunc(app.userLogin))
 	r.Method(http.MethodPost, "/user/login", dynamic.ThenFunc(app.userLoginPost))
-	r.Method(http.MethodPost, "/user/logout", dynamic.ThenFunc(app.userLogoutPost))
+
+	protected := dynamic.Append(app.requireAuthentication)
+
+	r.Method(http.MethodGet, "/snippet/create", protected.ThenFunc(app.snippetCreate))
+	r.Method(http.MethodPost, "/snippet/create", protected.ThenFunc(app.snippetCreatePost))
+	r.Method(http.MethodPost, "/user/logout", protected.ThenFunc(app.userLogoutPost))
 
 	standard := alice.New(app.recoverPanic, app.logRequest, securityHeaders)
 

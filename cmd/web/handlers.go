@@ -58,10 +58,8 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	flash := app.sessionManager.PopString(r.Context(), "flash")
 	data := app.newTemplateData(r)
 	data.Snippet = snippet
-	data.Flash = flash
 	app.render(w, http.StatusOK, "view.html", data)
 }
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
@@ -216,5 +214,14 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
 }
 func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
+	err := app.sessionManager.RenewToken(r.Context())
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	app.sessionManager.Remove(r.Context(), "authenticateUserID")
 
+	app.sessionManager.Put(r.Context(), "flash", "You have been successfully logged out")
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

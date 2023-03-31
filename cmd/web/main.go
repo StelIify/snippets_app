@@ -55,8 +55,8 @@ func main() {
 	}
 
 	infoLog.Printf("Starting server on %s", *addr)
-	// err = server.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
-	err = server.ListenAndServe()
+	err = server.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
+	// err = server.ListenAndServe()
 
 	erorrLog.Fatal(err)
 }

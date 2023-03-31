@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"runtime/debug"
 	"time"
+
+	"github.com/justinas/nosurf"
 )
 
-func (app *application) serverError (w http.ResponseWriter, err error){
+func (app *application) serverError(w http.ResponseWriter, err error) {
 	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
 
 	app.errorLog.Output(2, trace)
@@ -16,16 +18,16 @@ func (app *application) serverError (w http.ResponseWriter, err error){
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
-func (app *application) clientError (w http.ResponseWriter, status int){
+func (app *application) clientError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
-func (app *application) notFound (w http.ResponseWriter){
+func (app *application) notFound(w http.ResponseWriter) {
 	app.clientError(w, http.StatusNotFound)
 }
-func (app *application) render (w http.ResponseWriter, status int, page string, data*templateData){
+func (app *application) render(w http.ResponseWriter, status int, page string, data *templateData) {
 	ts, ok := app.templateCache[page]
-	if !ok{
+	if !ok {
 		err := fmt.Errorf("The template %s does not exist", page)
 		app.serverError(w, err)
 		return
@@ -33,16 +35,22 @@ func (app *application) render (w http.ResponseWriter, status int, page string, 
 	buffer := new(bytes.Buffer)
 
 	err := ts.ExecuteTemplate(buffer, "base", data)
-	if err != nil{
+	if err != nil {
 		app.serverError(w, err)
 	}
 
 	w.WriteHeader(status)
-	
+
 	buffer.WriteTo(w)
 }
-func (app *application) newTemplateData(r *http.Request) *templateData{
+func (app *application) isAuthenticated(r *http.Request) bool {
+	return app.sessionManager.Exists(r.Context(), "authenticateUserID")
+}
+func (app *application) newTemplateData(r *http.Request) *templateData {
 	return &templateData{
-		CurrentYear: time.Now().Year(),
+		CurrentYear:     time.Now().Year(),
+		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
+		IsAuthenticated: app.isAuthenticated(r),
+		CSRFToken:       nosurf.Token(r),
 	}
 }
