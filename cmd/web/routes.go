@@ -17,7 +17,7 @@ func (app *application) routes() http.Handler {
 
 	r.Method(http.MethodGet, "/static/*", http.StripPrefix("/static/", fileserver))
 
-	dynamic := alice.New(app.sessionManager.LoadAndSave, noSurf)
+	dynamic := alice.New(app.sessionManager.LoadAndSave, noSurf, app.authenticate)
 
 	r.Method(http.MethodGet, "/", dynamic.ThenFunc(app.home))
 	r.Method(http.MethodGet, "/snippet/view/{id}", dynamic.ThenFunc(app.snippetView))
